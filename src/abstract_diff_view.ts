@@ -1,5 +1,5 @@
 import { App, Component, MarkdownRenderer, Modal, TFile } from 'obsidian';
-import { diffWords, Change } from 'diff';
+import { diffWordsWithSpace } from 'diff';
 import type { vItem } from './interfaces';
 import type VersionRenderPlugin from './main';
 
@@ -59,11 +59,9 @@ export default abstract class VersionRenderView extends Modal {
 
 		this.titleEl.setText(this.file.basename);
 
-		// Panel izquierdo: versión seleccionada (histórica)
 		const selectedPanel = this.renderContainer.createDiv({
 			cls: 'version-render-panel',
 		});
-		// Panel derecho: versión actual (fija)
 		const currentPanel = this.renderContainer.createDiv({
 			cls: 'version-render-panel',
 		});
@@ -99,24 +97,16 @@ export default abstract class VersionRenderView extends Modal {
 			comp
 		);
 
-		// Hacer el texto seleccionable
 		selectedBody.style.userSelect = 'text';
 		currentBody.style.userSelect = 'text';
 
-		// Aplicar resaltado de diferencias (bloques + palabras)
 		this.applyDiffHighlighting(selectedBody, currentBody);
-
-		// Sincronizar scroll
 		this.syncScroll(selectedBody, currentBody);
 
-		// Reconstruir layout: selector a la izquierda, paneles a la derecha
 		this.contentEl.appendChild(this.historyContainer);
 		this.contentEl.appendChild(this.renderContainer);
 	}
 
-	/**
-	 * Sincroniza el scroll entre dos paneles.
-	 */
 	private syncScroll(panelA: HTMLElement, panelB: HTMLElement): void {
 		let syncing = false;
 
@@ -140,16 +130,21 @@ export default abstract class VersionRenderView extends Modal {
 	}
 
 	/**
-	 * Aplica resaltado en dos niveles:
-	 * 1. Bloques idénticos → opacidad 0.3
-	 * 2. Palabras cambiadas dentro de bloques diferentes → subrayado amarillo
+	 * Estrategia de resaltado:
+	 * 1. Bloques con textContent idéntico → opacidad 0.3 (atenuados)
+	 * 2. Bloques diferentes:
+	 *    a. Opacidad 1.0
+	 *    b. Subrayado amarillo en los fragmentos concretos que cambiaron
+	 *
+	 * Se usa diffWordsWithSpace para capturar cambios de espacios,
+	 * guiones y puntuación, no solo palabras.
+	 * El resaltado SOLO se aplica dentro de bloques no-atenuados.
 	 */
 	private applyDiffHighlighting(
 		selectedBody: HTMLElement,
 		currentBody: HTMLElement
 	): void {
 		requestAnimationFrame(() => {
-			// Nivel 1: bloques idénticos → atenuar
 			const leftBlocks = Array.from(
 				selectedBody.children
 			) as HTMLElement[];
@@ -157,13 +152,14 @@ export default abstract class VersionRenderView extends Modal {
 				currentBody.children
 			) as HTMLElement[];
 
+			// --- Pase 1: atenuar bloques idénticos ---
 			const matchedRight = new Set<number>();
+			const leftMatched = new Set<number>();
 
 			for (let li = 0; li < leftBlocks.length; li++) {
 				const lb = leftBlocks[li];
 				const leftText = (lb.textContent || '').trim();
-
-				if (lb.style.opacity === '0.3') continue;
+				if (leftText.length === 0) continue;
 
 				let bestMatch = -1;
 				for (
@@ -174,7 +170,7 @@ export default abstract class VersionRenderView extends Modal {
 					if (matchedRight.has(ri)) continue;
 					const rb = rightBlocks[ri];
 					const rightText = (rb.textContent || '').trim();
-					if (leftText === rightText && leftText.length > 0) {
+					if (leftText === rightText) {
 						bestMatch = ri;
 						break;
 					}
@@ -182,78 +178,89 @@ export default abstract class VersionRenderView extends Modal {
 
 				if (bestMatch >= 0) {
 					matchedRight.add(bestMatch);
+					leftMatched.add(li);
 					lb.style.opacity = '0.3';
 					rightBlocks[bestMatch].style.opacity = '0.3';
 				}
 			}
 
-			// Nivel 2: word-level diff en todo el contenido
-			this.highlightWordChanges(selectedBody, currentBody);
+			// --- Pase 2: subrayar diferencias dentro de bloques NO atenuados ---
+			// Usamos diffWordsWithSpace para capturar espacios, guiones y puntuación
+			const diffs = diffWordsWithSpace(
+				this.selectedContent,
+				this.currentContent
+			);
+
+			// Extraer fragmentos cambiados para cada lado
+			const leftFragments: string[] = [];
+			const rightFragments: string[] = [];
+
+			for (const part of diffs) {
+				if (part.value.trim().length === 0) continue;
+				if (part.removed) leftFragments.push(part.value.trim());
+				if (part.added) rightFragments.push(part.value.trim());
+			}
+
+			// Subrayar SOLO dentro de bloques no-atenuados
+			this.highlightFragmentsInPanel(
+				selectedBody,
+				leftFragments,
+				leftMatched
+			);
+			this.highlightFragmentsInPanel(
+				currentBody,
+				rightFragments,
+				matchedRight
+			);
 		});
 	}
 
 	/**
-	 * Compara palabra a palabra y subraya en amarillo los cambios exactos.
+	 * Subraya los fragmentos cambiados SOLO en los bloques que no fueron
+	 * atenuados (no idénticos). Esto evita falsos positivos como "James".
 	 */
-	private highlightWordChanges(
-		selectedBody: HTMLElement,
-		currentBody: HTMLElement
+	private highlightFragmentsInPanel(
+		body: HTMLElement,
+		fragments: string[],
+		matchedBlocks: Set<number>
 	): void {
-		const diffs = diffWords(this.selectedContent, this.currentContent);
+		if (fragments.length === 0) return;
 
-		// Extraer las palabras cambiadas para cada lado
-		// Lado izquierdo: palabras que fueron eliminadas (solo están en la versión antigua)
-		// Lado derecho: palabras que fueron añadidas (solo están en la versión actual)
-		const leftWords: string[] = [];
-		const rightWords: string[] = [];
+		// Filtrar fragmentos vacíos y demasiado genéricos
+		const filtered = fragments.filter(
+			(f) => f.length > 0
+		);
 
-		for (const part of diffs) {
-			// Saltar whitespace-only y puntuación suelta
-			const trimmed = part.value.trim();
-			if (trimmed.length === 0) continue;
+		// Obtener acceso indexado a los bloques
+		const blocks = Array.from(body.children) as HTMLElement[];
 
-			if (part.removed) {
-				// Tokenizar: dividir en palabras individuales
-				leftWords.push(...trimmed.split(/\s+/));
-			}
-			if (part.added) {
-				rightWords.push(...trimmed.split(/\s+/));
-			}
+		// Para cada bloque NO atenuado, buscar fragmentos y subrayarlos
+		for (let i = 0; i < blocks.length; i++) {
+			// Saltar bloques atenuados (idénticos al otro panel)
+			if (matchedBlocks.has(i)) continue;
+
+			const block = blocks[i];
+			this.highlightFragmentInBlock(block, filtered);
 		}
-
-		// Subrayar en cada panel
-		this.highlightWordsInPanel(selectedBody, leftWords);
-		this.highlightWordsInPanel(currentBody, rightWords);
 	}
 
 	/**
-	 * Recorre los nodos de texto y envuelve las palabras cambiadas
-	 * en un span con subrayado amarillo.
+	 * Busca y subraya fragmentos de texto dentro de un bloque concreto.
 	 */
-	private highlightWordsInPanel(
-		container: HTMLElement,
-		words: string[]
+	private highlightFragmentInBlock(
+		block: HTMLElement,
+		fragments: string[]
 	): void {
-		if (words.length === 0) return;
-
-		// Filtrar palabras significativas (>1 char, sin solo puntuación)
-		const significant = words.filter(
-			(w) => w.length > 1 && /[a-zA-Záéíóúüñ0-9]/.test(w)
-		);
-
-		// Crear un Set para búsqueda O(1)
-		const wordSet = new Set(significant);
-
 		const walker = document.createTreeWalker(
-			container,
+			block,
 			NodeFilter.SHOW_TEXT,
 			{
 				acceptNode: (node) => {
-					// No procesar nodos dentro de elementos de código
-					const parent = node.parentElement;
+					// Saltar nodos ya procesados o dentro de code
+					const parent = (node as Text).parentElement;
 					if (
 						parent?.closest(
-							'code, pre, .diff-word-changed'
+							'code, pre, .diff-word-changed, .diff-frag-highlight'
 						)
 					) {
 						return NodeFilter.FILTER_SKIP;
@@ -263,59 +270,43 @@ export default abstract class VersionRenderView extends Modal {
 			}
 		);
 
-		const replacements: Array<{
-			node: Text;
-			fragment: DocumentFragment;
-		}> = [];
+		// Intentar encontrar cada fragmento en los nodos de texto del bloque
+		for (const frag of fragments) {
+			if (frag.length === 0) continue;
 
-		let textNode: Text | null;
-		while ((textNode = walker.nextNode() as Text)) {
-			const text = textNode.textContent || '';
-			if (text.trim().length === 0) continue;
+			// Reiniciar el walker para cada fragmento
+			walker.currentNode = block;
 
-			const fragment = document.createDocumentFragment();
-			let lastIndex = 0;
-			let hasMatch = false;
+			let textNode: Text | null;
+			while ((textNode = walker.nextNode() as Text)) {
+				const text = textNode.textContent || '';
+				const idx = text.indexOf(frag);
 
-			// Tokenizar el texto del nodo en palabras manteniendo delimitadores
-			const regex = /(\S+|\s+)/g;
-			let match: RegExpExecArray | null;
-			while ((match = regex.exec(text)) !== null) {
-				const token = match[0];
-				// Si es una palabra cambiada, envolverla
-				if (wordSet.has(token)) {
-					// Añadir texto anterior sin resaltar
-					if (match.index > lastIndex) {
+				if (idx >= 0) {
+					// Encontrado: envolver en un span con subrayado
+					const span = document.createElement('span');
+					span.className = 'diff-frag-highlight';
+					span.textContent = frag;
+
+					const fragment = document.createDocumentFragment();
+					if (idx > 0) {
+						fragment.appendChild(
+							document.createTextNode(text.slice(0, idx))
+						);
+					}
+					fragment.appendChild(span);
+					if (idx + frag.length < text.length) {
 						fragment.appendChild(
 							document.createTextNode(
-								text.slice(lastIndex, match.index)
+								text.slice(idx + frag.length)
 							)
 						);
 					}
-					// Envolver la palabra cambiada
-					const span = document.createElement('span');
-					span.className = 'diff-word-changed';
-					span.textContent = token;
-					fragment.appendChild(span);
-					lastIndex = match.index + token.length;
-					hasMatch = true;
+
+					textNode.parentNode?.replaceChild(fragment, textNode);
+					break; // Pasar al siguiente fragmento
 				}
 			}
-
-			if (hasMatch) {
-				// Añadir el resto del texto tras el último match
-				if (lastIndex < text.length) {
-					fragment.appendChild(
-						document.createTextNode(text.slice(lastIndex))
-					);
-				}
-				replacements.push({ node: textNode, fragment });
-			}
-		}
-
-		// Aplicar reemplazos
-		for (const { node, fragment } of replacements) {
-			node.parentNode?.replaceChild(fragment, node);
 		}
 	}
 

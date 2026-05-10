@@ -117,12 +117,13 @@
 	}
 }
 
-/* === Subrayado amarillo para palabras cambiadas === */
+/* === Subrayado amarillo para fragmentos cambiados === */
 
-.diff-word-changed {
+.diff-frag-highlight {
 	text-decoration: underline;
 	text-decoration-color: var(--color-yellow);
 	text-underline-offset: 3px;
+	text-decoration-thickness: 2px;
 }
 
 /* === Mobile === */
