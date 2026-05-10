@@ -283,11 +283,11 @@ export default abstract class VersionRenderView extends Modal {
 			NodeFilter.SHOW_TEXT,
 			{
 				acceptNode: (node) => {
-					// Saltar nodos ya procesados o dentro de code
+					// Saltar solo nodos ya resaltados (evita doble proceso)
 					const parent = (node as Text).parentElement;
 					if (
 						parent?.closest(
-							'code, pre, .diff-word-changed, .diff-frag-highlight'
+							'.diff-word-changed, .diff-frag-highlight'
 						)
 					) {
 						return NodeFilter.FILTER_SKIP;
