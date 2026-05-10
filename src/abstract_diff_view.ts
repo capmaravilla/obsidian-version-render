@@ -191,15 +191,42 @@ export default abstract class VersionRenderView extends Modal {
 				this.currentContent
 			);
 
-			// Extraer fragmentos cambiados para cada lado
-			const leftFragments: string[] = [];
-			const rightFragments: string[] = [];
+		// Extraer fragmentos cambiados para cada lado, agrupando consecutivos.
+		// NO recortamos: los espacios en blanco son cambios legítimos.
+		const leftFragments: string[] = [];
+		const rightFragments: string[] = [];
 
-			for (const part of diffs) {
-				if (part.value.trim().length === 0) continue;
-				if (part.removed) leftFragments.push(part.value.trim());
-				if (part.added) rightFragments.push(part.value.trim());
+		let leftBuf = '';
+		let rightBuf = '';
+
+		for (const part of diffs) {
+			if (part.removed) {
+				if (rightBuf.length > 0) {
+					rightFragments.push(rightBuf);
+					rightBuf = '';
+				}
+				leftBuf += part.value;
+			} else if (part.added) {
+				if (leftBuf.length > 0) {
+					leftFragments.push(leftBuf);
+					leftBuf = '';
+				}
+				rightBuf += part.value;
+			} else {
+				// Segmento sin cambios: vaciar los buffers
+				if (leftBuf.length > 0) {
+					leftFragments.push(leftBuf);
+					leftBuf = '';
+				}
+				if (rightBuf.length > 0) {
+					rightFragments.push(rightBuf);
+					rightBuf = '';
+				}
 			}
+		}
+		// Vaciar restos
+		if (leftBuf.length > 0) leftFragments.push(leftBuf);
+		if (rightBuf.length > 0) rightFragments.push(rightBuf);
 
 			// Subrayar SOLO dentro de bloques no-atenuados
 			this.highlightFragmentsInPanel(
