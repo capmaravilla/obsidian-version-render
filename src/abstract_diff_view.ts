@@ -1,7 +1,5 @@
 import { App, Component, MarkdownRenderer, Modal, TFile } from 'obsidian';
-import { FILE_REC_WARNING } from './constants';
-import FileModal from './file_modal';
-import type { vItem, vRecoveryItem } from './interfaces';
+import type { vItem } from './interfaces';
 import type VersionRenderPlugin from './main';
 
 export default abstract class VersionRenderView extends Modal {
@@ -53,7 +51,6 @@ export default abstract class VersionRenderView extends Modal {
 	abstract appendVersions(): void;
 
 	public renderSideBySide(): void {
-		// Limpiar contenedor y componente anterior
 		this.renderContainer.empty();
 		this.currentComp?.unload();
 
@@ -61,10 +58,8 @@ export default abstract class VersionRenderView extends Modal {
 		comp.load();
 		this.currentComp = comp;
 
-		// Header: nombre de la nota
 		this.titleEl.setText(this.file.basename);
 
-		// Crear los dos paneles
 		const leftPanel = this.renderContainer.createDiv({
 			cls: 'version-render-panel',
 		});
@@ -72,43 +67,100 @@ export default abstract class VersionRenderView extends Modal {
 			cls: 'version-render-panel',
 		});
 
-		// Etiquetas de cada panel
 		leftPanel.createDiv({
 			cls: 'version-render-panel-header',
-			text: `← Versión antigua`,
+			text: '← Versión antigua',
 		});
 		rightPanel.createDiv({
 			cls: 'version-render-panel-header',
-			text: `→ Versión reciente`,
+			text: '→ Versión reciente',
 		});
 
-		// Contenido renderizado
-		const leftContent = leftPanel.createDiv({
+		const leftBody = leftPanel.createDiv({
 			cls: 'version-render-panel-body',
 		});
-		const rightContent = rightPanel.createDiv({
+		const rightBody = rightPanel.createDiv({
 			cls: 'version-render-panel-body',
 		});
 
 		MarkdownRenderer.render(
 			this.app,
 			this.leftContent,
-			leftContent,
+			leftBody,
 			this.file.path,
 			comp
 		);
 		MarkdownRenderer.render(
 			this.app,
 			this.rightContent,
-			rightContent,
+			rightBody,
 			this.file.path,
 			comp
 		);
 
-		// Añadir elementos al DOM
+		// Aplicar resaltado de diferencias
+		this.applyDiffHighlighting(leftBody, rightBody);
+
 		this.contentEl.appendChild(this.leftHistory[0]);
 		this.contentEl.appendChild(this.renderContainer);
 		this.contentEl.appendChild(this.rightHistory[0]);
+	}
+
+	/**
+	 * Aplica opacidad reducida a los bloques que son idénticos entre ambas versiones,
+	 * dejando a opacidad completa los que difieren.
+	 * Usa una comparación de bloques DOM con ventana deslizante para alinear
+	 * correctamente los elementos aunque haya inserciones o eliminaciones.
+	 */
+	private applyDiffHighlighting(
+		leftBody: HTMLElement,
+		rightBody: HTMLElement
+	): void {
+		// Aseguramos que el render se complete antes de manipular el DOM
+		requestAnimationFrame(() => {
+			const leftBlocks = Array.from(
+				leftBody.children
+			) as HTMLElement[];
+			const rightBlocks = Array.from(
+				rightBody.children
+			) as HTMLElement[];
+
+			// Para cada bloque de la izquierda, buscar el mejor match en la derecha
+			const matchedRight = new Set<number>();
+
+			for (let li = 0; li < leftBlocks.length; li++) {
+				const lb = leftBlocks[li];
+				const leftText = (lb.textContent || '').trim();
+
+				// Si ya se emparejó, siguiente
+				if (lb.style.opacity === '0.3') continue;
+
+				// Buscar en la derecha un bloque con el mismo texto
+				let bestMatch = -1;
+				for (
+					let ri = 0;
+					ri < rightBlocks.length && ri < li + 3;
+					ri++
+				) {
+					if (matchedRight.has(ri)) continue;
+					const rb = rightBlocks[ri];
+					const rightText = (rb.textContent || '').trim();
+					if (
+						leftText === rightText &&
+						leftText.length > 0
+					) {
+						bestMatch = ri;
+						break;
+					}
+				}
+
+				if (bestMatch >= 0) {
+					matchedRight.add(bestMatch);
+					lb.style.opacity = '0.3';
+					rightBlocks[bestMatch].style.opacity = '0.3';
+				}
+			}
+		});
 	}
 
 	public makeHistoryLists(): void {
@@ -122,23 +174,6 @@ export default abstract class VersionRenderView extends Modal {
 	): HTMLElement[] {
 		const container = el.createDiv({
 			cls: 'sync-history-list-container',
-		});
-
-		// Botón "Render this version" en AMBOS lados
-		const side = left ? 'left' : 'right';
-		const showFile = container.createEl('button', {
-			cls: 'mod-cta',
-			text: `Render ${side} version`,
-		});
-		showFile.addEventListener('click', () => {
-			const content = left ? this.leftContent : this.rightContent;
-			new FileModal(
-				this.plugin,
-				this.app,
-				content,
-				this.file,
-				FILE_REC_WARNING
-			).open();
 		});
 
 		const historyList = container.createDiv({
