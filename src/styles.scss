@@ -33,8 +33,8 @@
 
 .sync-history-list-container {
 	flex-shrink: 0;
-	min-width: 180px;
-	max-width: 220px;
+	min-width: 175px;
+	max-width: 200px;
 	overflow-y: auto;
 
 	.sync-history-list {
@@ -43,12 +43,13 @@
 		.sync-history-list-item-header {
 			border-radius: 0.25em;
 			display: block;
-			padding: 0.4em 0.6em;
+			padding: 0.4em 0.5em;
 			margin: 0.15em 0;
 			cursor: pointer;
 			font-size: var(--font-small);
 			line-height: 1.3;
 			word-break: break-word;
+			text-align: center;
 
 			&:hover {
 				background-color: var(--background-modifier-hover);
@@ -95,6 +96,7 @@
 	flex-shrink: 0;
 	white-space: pre-line;
 	line-height: 1.3;
+	text-align: center;
 }
 
 .version-render-panel-body {
@@ -113,6 +115,14 @@
 	.language-yaml:after {
 		display: none;
 	}
+}
+
+/* === Subrayado amarillo para palabras cambiadas === */
+
+.diff-word-changed {
+	text-decoration: underline;
+	text-decoration-color: var(--color-yellow);
+	text-underline-offset: 3px;
 }
 
 /* === Mobile === */
