@@ -1,6 +1,6 @@
 {
-	"id": "obsidian-version-render",
-	"name": "Version Render",
+	"id": "cm-backtrack",
+	"name": "CM Backtrack",
 	"version": "1.0.0",
 	"minAppVersion": "1.6.0",
 	"description": "Visualiza el historial de versiones de File Recovery con vista renderizada side-by-side.",

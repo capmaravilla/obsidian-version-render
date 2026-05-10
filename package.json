@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-version-render",
+	"name": "cm-backtrack",
 	"version": "1.0.0",
 	"description": "Visualiza el historial de versiones de File Recovery con vista renderizada side-by-side.",
 	"main": "src/main.ts",
