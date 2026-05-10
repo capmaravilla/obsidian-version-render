@@ -6,16 +6,15 @@ export default abstract class VersionRenderView extends Modal {
 	plugin: VersionRenderPlugin;
 	app: App;
 	file: TFile;
-	leftVList: vItem[];
-	rightVList: vItem[];
-	leftActive: number;
-	rightActive: number;
-	rightContent: string;
-	leftContent: string;
+	vList: vItem[];
+	active: number;
+	currentContent: string;
+	selectedContent: string;
+	selectedLabel: string;
 	renderContainer: HTMLElement;
-	leftHistory: HTMLElement[];
-	rightHistory: HTMLElement[];
-	ids: { left: number; right: number };
+	historyContainer: HTMLElement;
+	historyList: HTMLElement;
+	ids: number;
 	private currentComp: Component | null = null;
 
 	constructor(plugin: VersionRenderPlugin, app: App, file: TFile) {
@@ -24,17 +23,16 @@ export default abstract class VersionRenderView extends Modal {
 		this.app = app;
 		this.file = file;
 		this.modalEl.addClasses(['mod-sync-history', 'diff']);
-		this.leftVList = [];
-		this.rightVList = [];
-		this.rightActive = 0;
-		this.leftActive = 1;
-		this.rightContent = '';
-		this.leftContent = '';
-		this.ids = { left: 0, right: 0 };
-		//@ts-expect-error, will be filled with the correct data later
-		this.leftHistory = [null];
-		//@ts-expect-error, will be filled with the correct data later
-		this.rightHistory = [null];
+		this.vList = [];
+		this.active = 0;
+		this.selectedContent = '';
+		this.currentContent = '';
+		this.selectedLabel = '';
+		this.ids = 0;
+		//@ts-expect-error, will be filled later
+		this.historyContainer = null;
+		//@ts-expect-error, will be filled later
+		this.historyList = null;
 		this.containerEl.addClass('diff');
 		// @ts-ignore
 		this.renderContainer = this.contentEl.createDiv({
@@ -60,82 +58,114 @@ export default abstract class VersionRenderView extends Modal {
 
 		this.titleEl.setText(this.file.basename);
 
-		const leftPanel = this.renderContainer.createDiv({
+		// Panel izquierdo: versión seleccionada (histórica)
+		const selectedPanel = this.renderContainer.createDiv({
 			cls: 'version-render-panel',
 		});
-		const rightPanel = this.renderContainer.createDiv({
+		// Panel derecho: versión actual (fija)
+		const currentPanel = this.renderContainer.createDiv({
 			cls: 'version-render-panel',
 		});
 
-		leftPanel.createDiv({
+		selectedPanel.createDiv({
 			cls: 'version-render-panel-header',
-			text: '← Versión antigua',
+			text: this.selectedLabel || 'Versión seleccionada',
 		});
-		rightPanel.createDiv({
+		currentPanel.createDiv({
 			cls: 'version-render-panel-header',
-			text: '→ Versión reciente',
+			text: 'Versión actual',
 		});
 
-		const leftBody = leftPanel.createDiv({
+		const selectedBody = selectedPanel.createDiv({
 			cls: 'version-render-panel-body',
 		});
-		const rightBody = rightPanel.createDiv({
+		const currentBody = currentPanel.createDiv({
 			cls: 'version-render-panel-body',
 		});
 
 		MarkdownRenderer.render(
 			this.app,
-			this.leftContent,
-			leftBody,
+			this.selectedContent,
+			selectedBody,
 			this.file.path,
 			comp
 		);
 		MarkdownRenderer.render(
 			this.app,
-			this.rightContent,
-			rightBody,
+			this.currentContent,
+			currentBody,
 			this.file.path,
 			comp
 		);
+
+		// Hacer el texto seleccionable
+		selectedBody.style.userSelect = 'text';
+		currentBody.style.userSelect = 'text';
 
 		// Aplicar resaltado de diferencias
-		this.applyDiffHighlighting(leftBody, rightBody);
+		this.applyDiffHighlighting(selectedBody, currentBody);
 
-		this.contentEl.appendChild(this.leftHistory[0]);
+		// Sincronizar scroll
+		this.syncScroll(selectedBody, currentBody);
+
+		// Reconstruir layout: selector a la izquierda, paneles a la derecha
+		this.contentEl.appendChild(this.historyContainer);
 		this.contentEl.appendChild(this.renderContainer);
-		this.contentEl.appendChild(this.rightHistory[0]);
+	}
+
+	/**
+	 * Sincroniza el scroll entre dos paneles.
+	 */
+	private syncScroll(panelA: HTMLElement, panelB: HTMLElement): void {
+		let syncing = false;
+
+		const sync = (
+			source: HTMLElement,
+			target: HTMLElement
+		) => {
+			source.addEventListener('scroll', () => {
+				if (syncing) return;
+				syncing = true;
+				// Sincronizar proporcionalmente
+				const ratio =
+					source.scrollTop /
+					(source.scrollHeight - source.clientHeight || 1);
+				target.scrollTop =
+					ratio * (target.scrollHeight - target.clientHeight);
+				requestAnimationFrame(() => {
+					syncing = false;
+				});
+			});
+		};
+
+		sync(panelA, panelB);
+		sync(panelB, panelA);
 	}
 
 	/**
 	 * Aplica opacidad reducida a los bloques que son idénticos entre ambas versiones,
 	 * dejando a opacidad completa los que difieren.
-	 * Usa una comparación de bloques DOM con ventana deslizante para alinear
-	 * correctamente los elementos aunque haya inserciones o eliminaciones.
 	 */
 	private applyDiffHighlighting(
-		leftBody: HTMLElement,
-		rightBody: HTMLElement
+		selectedBody: HTMLElement,
+		currentBody: HTMLElement
 	): void {
-		// Aseguramos que el render se complete antes de manipular el DOM
 		requestAnimationFrame(() => {
 			const leftBlocks = Array.from(
-				leftBody.children
+				selectedBody.children
 			) as HTMLElement[];
 			const rightBlocks = Array.from(
-				rightBody.children
+				currentBody.children
 			) as HTMLElement[];
 
-			// Para cada bloque de la izquierda, buscar el mejor match en la derecha
 			const matchedRight = new Set<number>();
 
 			for (let li = 0; li < leftBlocks.length; li++) {
 				const lb = leftBlocks[li];
 				const leftText = (lb.textContent || '').trim();
 
-				// Si ya se emparejó, siguiente
 				if (lb.style.opacity === '0.3') continue;
 
-				// Buscar en la derecha un bloque con el mismo texto
 				let bestMatch = -1;
 				for (
 					let ri = 0;
@@ -163,49 +193,32 @@ export default abstract class VersionRenderView extends Modal {
 		});
 	}
 
-	public makeHistoryLists(): void {
-		this.leftHistory = this.createHistory(this.contentEl, true);
-		this.rightHistory = this.createHistory(this.contentEl, false);
-	}
+	public makeHistoryList(): void {
+		const container =
+			this.historyContainer ||
+			this.contentEl.createDiv({
+				cls: 'sync-history-list-container',
+			});
+		this.historyContainer = container;
 
-	private createHistory(
-		el: HTMLElement,
-		left: boolean = false
-	): HTMLElement[] {
-		const container = el.createDiv({
-			cls: 'sync-history-list-container',
-		});
-
-		const historyList = container.createDiv({
+		this.historyList = container.createDiv({
 			cls: 'sync-history-list',
 		});
-		return [container, historyList];
 	}
 
-	public makeMoreGeneralHtml(): void {
-		this.rightVList[0].html.addClass('is-active');
-		this.leftVList[1].html.addClass('is-active');
-		this.rightActive = 0;
-		this.leftActive = 1;
-	}
-
-	public async generateVersionListener(
-		div: HTMLDivElement,
-		currentVList: vItem[],
-		currentActive: number,
-		left: boolean = false
+	public async activateVersion(
+		div: HTMLDivElement
 	): Promise<vItem> {
-		const currentSideOldVersion = currentVList[currentActive];
+		const oldVersion = this.vList[this.active];
 		const idx = Number(div.id);
-		const clickedEl: vItem = currentVList[idx];
+		const clickedEl: vItem = this.vList[idx];
 		div.addClass('is-active');
-		if (left) {
-			this.leftActive = idx;
-		} else {
-			this.rightActive = idx;
-		}
-		if (Number.parseInt(currentSideOldVersion.html.id) !== idx) {
-			currentSideOldVersion.html.classList.remove('is-active');
+		this.active = idx;
+		if (
+			oldVersion &&
+			Number.parseInt(oldVersion.html.id) !== idx
+		) {
+			oldVersion.html.classList.remove('is-active');
 		}
 		return clickedEl;
 	}
