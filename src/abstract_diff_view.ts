@@ -1,13 +1,11 @@
-import { createTwoFilesPatch } from 'diff';
-import { Diff2HtmlConfig, html } from 'diff2html';
-import { App, Modal, TFile } from 'obsidian';
-import { SYNC_WARNING } from './constants';
+import { App, Component, MarkdownRenderer, Modal, TFile } from 'obsidian';
+import { FILE_REC_WARNING } from './constants';
 import FileModal from './file_modal';
-import type { vItem, vRecoveryItem, vSyncItem } from './interfaces';
-import type OpenSyncHistoryPlugin from './main';
+import type { vItem, vRecoveryItem } from './interfaces';
+import type VersionRenderPlugin from './main';
 
-export default abstract class DiffView extends Modal {
-	plugin: OpenSyncHistoryPlugin;
+export default abstract class VersionRenderView extends Modal {
+	plugin: VersionRenderPlugin;
 	app: App;
 	file: TFile;
 	leftVList: vItem[];
@@ -16,13 +14,13 @@ export default abstract class DiffView extends Modal {
 	rightActive: number;
 	rightContent: string;
 	leftContent: string;
-	syncHistoryContentContainer: HTMLElement;
+	renderContainer: HTMLElement;
 	leftHistory: HTMLElement[];
 	rightHistory: HTMLElement[];
-	htmlConfig: Diff2HtmlConfig;
 	ids: { left: number; right: number };
+	private currentComp: Component | null = null;
 
-	constructor(plugin: OpenSyncHistoryPlugin, app: App, file: TFile) {
+	constructor(plugin: VersionRenderPlugin, app: App, file: TFile) {
 		super(app);
 		this.plugin = plugin;
 		this.app = app;
@@ -39,116 +37,119 @@ export default abstract class DiffView extends Modal {
 		this.leftHistory = [null];
 		//@ts-expect-error, will be filled with the correct data later
 		this.rightHistory = [null];
-		this.htmlConfig = {
-			diffStyle: this.plugin.settings.diffStyle,
-			matchWordsThreshold: this.plugin.settings.matchWordsThreshold,
-			outputFormat: this.plugin.settings.outputFormat,
-		};
 		this.containerEl.addClass('diff');
 		// @ts-ignore
-		this.syncHistoryContentContainer = this.contentEl.createDiv({
-			cls: ['sync-history-content-container', 'diff'],
+		this.renderContainer = this.contentEl.createDiv({
+			cls: ['version-render-container', 'diff'],
 		});
-		if (this.plugin.settings.colorBlind) {
-			this.syncHistoryContentContainer.addClass('colorblind');
-		}
 	}
 
 	onOpen() {
 		super.onOpen();
-		// in onOpen() of the child classes these calls need to be implemented
-
-		// initial versions are different
-		//
-
-		// same
-		// const diff = this.getDiff();
-		// this.makeHistoryLists(FILE_REC_WARNING);
-
-		// // Sync needs to make buttons as well
-		// //
-
-		// // same
-		// this.basicHtml(diff);
-
-		// // appending the versions is different
-		// //
-
-		// // same
-		// this.makeMoreGeneralHtml();
 	}
 
 	abstract getInitialVersions(): Promise<void | boolean>;
 
 	abstract appendVersions(): void;
 
-	public getDiff(): string {
-		// the second type is needed for the Git view, it reimplements getDiff
-		// get diff
-		const uDiff = createTwoFilesPatch(
-			this.file.basename,
-			this.file.basename,
+	public renderSideBySide(): void {
+		// Limpiar contenedor y componente anterior
+		this.renderContainer.empty();
+		this.currentComp?.unload();
+
+		const comp = new Component();
+		comp.load();
+		this.currentComp = comp;
+
+		// Header: nombre de la nota
+		this.titleEl.setText(this.file.basename);
+
+		// Crear los dos paneles
+		const leftPanel = this.renderContainer.createDiv({
+			cls: 'version-render-panel',
+		});
+		const rightPanel = this.renderContainer.createDiv({
+			cls: 'version-render-panel',
+		});
+
+		// Etiquetas de cada panel
+		leftPanel.createDiv({
+			cls: 'version-render-panel-header',
+			text: `← Versión antigua`,
+		});
+		rightPanel.createDiv({
+			cls: 'version-render-panel-header',
+			text: `→ Versión reciente`,
+		});
+
+		// Contenido renderizado
+		const leftContent = leftPanel.createDiv({
+			cls: 'version-render-panel-body',
+		});
+		const rightContent = rightPanel.createDiv({
+			cls: 'version-render-panel-body',
+		});
+
+		MarkdownRenderer.render(
+			this.app,
 			this.leftContent,
-			this.rightContent
+			leftContent,
+			this.file.path,
+			comp
+		);
+		MarkdownRenderer.render(
+			this.app,
+			this.rightContent,
+			rightContent,
+			this.file.path,
+			comp
 		);
 
-		// create HTML from diff
-		const diff = html(uDiff, this.htmlConfig);
-		return diff;
+		// Añadir elementos al DOM
+		this.contentEl.appendChild(this.leftHistory[0]);
+		this.contentEl.appendChild(this.renderContainer);
+		this.contentEl.appendChild(this.rightHistory[0]);
 	}
 
-	public makeHistoryLists(warning: string): void {
-		// create both history lists
-		this.leftHistory = this.createHistory(this.contentEl, true, warning);
-		this.rightHistory = this.createHistory(this.contentEl, false, warning);
+	public makeHistoryLists(): void {
+		this.leftHistory = this.createHistory(this.contentEl, true);
+		this.rightHistory = this.createHistory(this.contentEl, false);
 	}
 
 	private createHistory(
 		el: HTMLElement,
-		left: boolean = false,
-		warning: string
+		left: boolean = false
 	): HTMLElement[] {
-		const syncHistoryListContainer = el.createDiv({
+		const container = el.createDiv({
 			cls: 'sync-history-list-container',
 		});
-		if (left) {
-			const showFile = syncHistoryListContainer.createEl('button', {
-				cls: 'mod-cta',
-				text: 'Render this version',
-			});
-			showFile.addEventListener('click', () => {
-				new FileModal(
-					this.plugin,
-					this.app,
-					this.leftContent,
-					this.file,
-					warning
-				).open();
-			});
-		}
-		const syncHistoryList = syncHistoryListContainer.createDiv({
+
+		// Botón "Render this version" en AMBOS lados
+		const side = left ? 'left' : 'right';
+		const showFile = container.createEl('button', {
+			cls: 'mod-cta',
+			text: `Render ${side} version`,
+		});
+		showFile.addEventListener('click', () => {
+			const content = left ? this.leftContent : this.rightContent;
+			new FileModal(
+				this.plugin,
+				this.app,
+				content,
+				this.file,
+				FILE_REC_WARNING
+			).open();
+		});
+
+		const historyList = container.createDiv({
 			cls: 'sync-history-list',
 		});
-		return [syncHistoryListContainer, syncHistoryList];
-	}
-
-	public basicHtml(diff: string, diffType: string): void {
-		// set title
-		this.titleEl.setText(diffType);
-		// add diff to container
-		this.syncHistoryContentContainer.innerHTML = diff;
-
-		// add history lists and diff to DOM
-		this.contentEl.appendChild(this.leftHistory[0]);
-		this.contentEl.appendChild(this.syncHistoryContentContainer);
-		this.contentEl.appendChild(this.rightHistory[0]);
+		return [container, historyList];
 	}
 
 	public makeMoreGeneralHtml(): void {
-		// highlight initial two versions
 		this.rightVList[0].html.addClass('is-active');
 		this.leftVList[1].html.addClass('is-active');
-		// keep track of highlighted versions
 		this.rightActive = 0;
 		this.leftActive = 1;
 	}
@@ -159,10 +160,7 @@ export default abstract class DiffView extends Modal {
 		currentActive: number,
 		left: boolean = false
 	): Promise<vItem> {
-		// the exact return type depends on the type of currentVList, it is either vSyncItem or vRecoveryItem
-		// formerly active left/right version
 		const currentSideOldVersion = currentVList[currentActive];
-		// get the HTML of the new version to set it active
 		const idx = Number(div.id);
 		const clickedEl: vItem = currentVList[idx];
 		div.addClass('is-active');
@@ -171,10 +169,15 @@ export default abstract class DiffView extends Modal {
 		} else {
 			this.rightActive = idx;
 		}
-		// make old not active
 		if (Number.parseInt(currentSideOldVersion.html.id) !== idx) {
 			currentSideOldVersion.html.classList.remove('is-active');
 		}
 		return clickedEl;
+	}
+
+	onClose() {
+		super.onClose();
+		this.currentComp?.unload();
+		this.currentComp = null;
 	}
 }

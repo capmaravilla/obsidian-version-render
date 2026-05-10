@@ -1,57 +1,48 @@
-# Version History Diff (for Sync and File Recovery Core plugins and Git)
+# Version Render for Obsidian
 
-## Note
+Fork de [obsidian-version-history-diff](https://github.com/kometenstaub/obsidian-version-history-diff) por kometenstaub.
 
-This plugin uses private APIs, so it may break at any time. Use at your own risk.
+**Versión simplificada que solo muestra File Recovery con vista renderizada side-by-side.**
 
-## Features
+## Diferencias con el original
 
-It can 
+| | Original | Version Render |
+|---|---|---|
+| Backends | Sync, File Recovery, Git | Solo **File Recovery** |
+| Vista | Diff (unificado / side-by-side) | **Renderizado markdown** side-by-side |
+| Dependencias | diff, diff2html | Ninguna extra |
+| Tamaño | ~200KB (comprimido) | ~25KB |
 
-1. display diffs of the **Sync** 
-2. and the **File Recovery** 
-3. and **Git** version history for the currently active file, 
-   - For this to work, the [Obsidian Git](https://obsidian.md/plugins?id=obsidian-git) plugin needs to be installed.
-4. open a selected version in a modal and 
-5. render it as either markdown or 
-6. plain text and 
-7. you can overwrite the file with this version as well. 
-8. There is a colour-blind mode
-9. And you can switch between `line-by-line` and `side-by-side` view in the settings. The latter is only recommended on bigger screens.
+## Requisitos
 
-The reason for showing you the note before you revert to this state is that the diffs can be misleading.
+- Obsidian v1.6.0+
+- File Recovery activado (plugin core, viene activado por defecto)
 
-### Sync Diff example
+## Uso
 
-![Sync Diff changes modal](https://raw.githubusercontent.com/kometenstaub/obsidian-version-history-diff/main/demo/sync-diff.png)
+1. Abre una nota
+2. Ejecuta el comando **"Show version history for active file"** desde la paleta de comandos (`Ctrl+P` / `Cmd+P`)
+3. Se abre un modal con:
+   - **Panel izquierdo**: lista de versiones antiguas
+   - **Centro**: dos paneles con la nota renderizada (izquierda = versión antigua, derecha = versión actual)
+   - **Panel derecho**: lista de versiones recientes
+4. Haz clic en cualquier versión para actualizar la vista
+5. Usa los botones "Render left/right version" para ver una versión individual con opción de restaurar
 
-![Sync Diff rendered version](https://raw.githubusercontent.com/kometenstaub/obsidian-version-history-diff/main/demo/sync-diff-2.png)
+## Instalación
 
-![Sync Diff plain text version](https://raw.githubusercontent.com/kometenstaub/obsidian-version-history-diff/main/demo/sync-diff-3.png)
+1. Descarga la [última release](https://github.com/capmaravilla/obsidian-version-render/releases)
+2. Extrae `main.js`, `manifest.json`, `styles.css` a `TuBoveda/.obsidian/plugins/obsidian-version-render/`
+3. Activa el plugin en Ajustes → Plugins comunitarios
 
-### Git Diff example with colour-blind mode
+## Desarrollo
 
-![Git Diff dark mode colourblind mode deletion](https://raw.githubusercontent.com/kometenstaub/obsidian-version-history-diff/main/demo/git-diff-colorblind.png)
+```bash
+npm install
+npm run dev    # Modo watch
+npm run build  # Producción
+```
 
-![Git Diff light mode colourblind mode addition](https://raw.githubusercontent.com/kometenstaub/obsidian-version-history-diff/main/demo/git-diff-colorblind-light.png)
+## Licencia
 
-## Usage
-
-There are two columns. The chosen version on the right side should be newer than the one on the left side for the diffs to make sense.
-
-I personally find the file recovery diffs better as they are less frequent, but the Sync diffs might be helpful as well.
-
-For *Sync*, it only displays the Sync versions. For *File Recovery* and *Git*, it also shows the current state of the file from disk as latest version.
-
-The Git diff lets you copy the hash by clicking on it. By default, only the first seven characters are copied. `Shift-click` to copy the full hash.
-
-## Contributing
-
-**Please open an issue before you make a PR.**
-
-## Credits
-
-All licenses and attributions can be found in the `esbuild.mjs` file for the code (and therefore in the `main.js` release), the CSS license is in `src/styles.scss`. Should any license/attribution be missing, please let me know, and I will look into it.
-
-
-Special thanks to @SlRvb for adapting the CSS to Obsidian and making the colour-blind mode and to @Vinzent03 for creating the necessary APIs in the Obsidian Git plugin.
+MIT

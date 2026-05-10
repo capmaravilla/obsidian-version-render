@@ -4,19 +4,17 @@ import {
 	MarkdownRenderer,
 	Modal,
 	Notice,
-	sanitizeHTMLToDom,
 	setTooltip,
 	TFile,
 } from 'obsidian';
-import { FILE_REC_WARNING } from './constants';
-import type OpenSyncHistoryPlugin from './main';
+import type VersionRenderPlugin from './main';
 
 export default class FileModal extends Modal {
 	raw: boolean;
 	comp: Component;
 
 	constructor(
-		private plugin: OpenSyncHistoryPlugin,
+		private plugin: VersionRenderPlugin,
 		public app: App,
 		private syncFile: string,
 		private file: TFile,

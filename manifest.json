@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-version-history-diff",
-	"name": "Version History Diff",
-	"version": "2.3.4",
+	"id": "obsidian-version-render",
+	"name": "Version Render",
+	"version": "1.0.0",
 	"minAppVersion": "1.6.0",
-	"description": "Diff the version history of the core Sync and File Recovery plugins and Git.",
-	"author": "kometenstaub",
-	"authorUrl": "https://github.com/kometenstaub",
+	"description": "Visualiza el historial de versiones de File Recovery con vista renderizada side-by-side.",
+	"author": "capmaravilla",
+	"authorUrl": "https://github.com/capmaravilla",
 	"isDesktopOnly": false
 }

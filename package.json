@@ -1,43 +1,18 @@
 {
-	"name": "sync-version-history",
-	"version": "2.3.4",
-	"description": "Display diffs of the version history from the core Sync and File Recovery plugins and Git.",
+	"name": "obsidian-version-render",
+	"version": "1.0.0",
+	"description": "Visualiza el historial de versiones de File Recovery con vista renderizada side-by-side.",
 	"main": "src/main.ts",
 	"scripts": {
 		"dev": "cross-env BUILD=dev node esbuild.mjs",
 		"build": "cross-env BUILD=production node esbuild.mjs",
-		"release": "standard-version",
 		"lint": "npx eslint src/",
-		"test": "jest",
-		"format": "npx prettier --write src/",
 		"css": "npx sass --watch src/styles.scss build/styles.css"
 	},
-	"standard-version": {
-		"t": "",
-		"types": [
-			{
-				"type": "perf",
-				"hidden": false,
-				"section": "Performance"
-			},
-			{
-				"type": "feat",
-				"hidden": false,
-				"section": "Features"
-			},
-			{
-				"type": "fix",
-				"hidden": false,
-				"section": "Bug Fixes"
-			}
-		],
-		"releaseCommitMessageFormat": "Version history diff: {{currentTag}}"
-	},
 	"keywords": [],
-	"author": "kometenstaub",
+	"author": "capmaravilla",
 	"license": "MIT",
 	"devDependencies": {
-		"@types/diff": "5.0.2",
 		"@types/node": "14.18.36",
 		"@typescript-eslint/eslint-plugin": "5.53.0",
 		"@typescript-eslint/parser": "5.53.0",
@@ -50,13 +25,7 @@
 		"prettier": "2.5.0",
 		"process": "0.11.10",
 		"sass": "1.58.3",
-		"standard-version": "9.5.0",
-		"ts-jest": "27.1.5",
 		"tslib": "2.5.0",
 		"typescript": "4.9.5"
-	},
-	"dependencies": {
-		"diff": "5.2.2",
-		"diff2html": "3.4.31"
 	}
 }
