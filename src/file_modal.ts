@@ -37,48 +37,52 @@ export default class FileModal extends Modal {
 	async onOpen() {
 		this.containerEl.addClass('version-display');
 
-		const warning = this.contentEl.createDiv({
-			text: this.warning,
-		});
-		this.contentEl.createEl('br');
+		/* Warning con banner estilizado */
+		const warningBanner = this.contentEl.createDiv({ cls: 'bt-warning' });
+		warningBanner.createSpan({ text: this.warning });
 
-		const restoreButton = this.contentEl.createEl('button', {
-			cls: ['mod-cta', 'restore'],
-			text: `Replace file content with the shown version`,
+		/* Grupo de acciones */
+		const actions = this.contentEl.createDiv({ cls: 'bt-actions' });
+
+		const restoreButton = actions.createEl('button', {
+			cls: 'bt-restore-btn',
+			text: 'Restaurar esta versión',
 		});
-		setTooltip(restoreButton, 'Click to replace with this version', {
+		setTooltip(restoreButton, 'Sobrescribe el archivo actual con esta versión', {
 			placement: 'top',
 		});
-		const switchButton = this.contentEl.createEl('button', {
-			cls: ['mod-cta', 'switch'],
-			text: 'Show raw text',
+
+		const switchButton = actions.createEl('button', {
+			cls: 'bt-toggle-btn',
+			text: 'Ver texto plano',
 		});
 
-		const el = this.contentEl.createDiv();
+		/* Área de contenido */
+		const contentArea = this.contentEl.createDiv({ cls: 'bt-content-area' });
 
 		switchButton.addEventListener('click', () => {
 			if (!this.raw) {
-				el.empty();
-				const textArea = el.createEl('textarea', {
+				contentArea.empty();
+				const textArea = contentArea.createEl('textarea', {
 					text: this.syncFile,
-					attr: { spellcheck: false },
-					cls: 'plain-text-area',
+					attr: { spellcheck: 'false' },
+					cls: 'bt-raw-area',
 				});
 				this.raw = !this.raw;
-				switchButton.innerText = 'Show Reading view';
+				switchButton.innerText = 'Ver vista de lectura';
 			} else {
 				this.raw = !this.raw;
 				(async () => {
-					el.empty();
+					contentArea.empty();
 					await MarkdownRenderer.render(
 						this.app,
 						this.syncFile,
-						el,
+						contentArea,
 						this.file.path,
 						this.comp
 					);
 				})();
-				switchButton.innerText = 'Show raw text';
+				switchButton.innerText = 'Ver texto plano';
 			}
 		});
 
@@ -87,7 +91,7 @@ export default class FileModal extends Modal {
 				await this.app.vault.modify(this.file, this.syncFile);
 			})();
 			new Notice(
-				`The ${this.file.basename} file has been overwritten with the selected version.`
+				`Archivo «${this.file.basename}» restaurado a la versión seleccionada.`
 			);
 			this.close();
 		});
@@ -95,7 +99,7 @@ export default class FileModal extends Modal {
 		await MarkdownRenderer.render(
 			this.app,
 			this.syncFile,
-			el,
+			contentArea,
 			this.file.path,
 			this.comp
 		);

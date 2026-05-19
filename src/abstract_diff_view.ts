@@ -1,4 +1,4 @@
-import { App, Component, MarkdownRenderer, Modal, TFile } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Notice, setTooltip, TFile } from 'obsidian';
 import { diffWordsWithSpace } from 'diff';
 import type { vItem } from './interfaces';
 import type VersionRenderPlugin from './main';
@@ -49,6 +49,12 @@ export default abstract class VersionRenderView extends Modal {
 
 	abstract appendVersions(): void;
 
+	/**
+	 * Añade una versión "custom" al historial (no viene de File Recovery).
+	 * La implementación concreta decide cómo insertarla en la lista visual y en los arrays internos.
+	 */
+	abstract addCustomVersion(data: string, ts: number): void;
+
 	public renderSideBySide(): void {
 		this.renderContainer.empty();
 		this.currentComp?.unload();
@@ -66,10 +72,36 @@ export default abstract class VersionRenderView extends Modal {
 			cls: 'version-render-panel',
 		});
 
-		selectedPanel.createDiv({
+		/* Panel izquierdo: versión seleccionada + botones de acción */
+		const selectedHeader = selectedPanel.createDiv({
 			cls: 'version-render-panel-header',
-			text: this.selectedLabel || 'Versión seleccionada',
 		});
+		selectedHeader.createSpan({ text: this.selectedLabel || 'Versión seleccionada' });
+
+		/* Botones de acción */
+		const actionButtons = selectedHeader.createDiv({ cls: 'bt-panel-actions' });
+
+		const restoreBtn = actionButtons.createEl('button', {
+			cls: 'bt-panel-btn bt-restore-btn',
+			text: 'Convertir en nota actual',
+		});
+		setTooltip(
+			restoreBtn,
+			'Sobrescribe el archivo con esta versión. La actual se añade al historial.'
+		);
+		restoreBtn.addEventListener('click', async () => {
+			await this.restoreSelectedVersion();
+		});
+
+		const copyBtn = actionButtons.createEl('button', {
+			cls: 'bt-panel-btn bt-copy-btn',
+			text: 'Copiar al portapapeles',
+		});
+		setTooltip(copyBtn, 'Copia el contenido de esta versión.');
+		copyBtn.addEventListener('click', async () => {
+			await this.copySelectedContent();
+		});
+
 		currentPanel.createDiv({
 			cls: 'version-render-panel-header',
 			text: 'Versión actual',
@@ -360,6 +392,46 @@ export default abstract class VersionRenderView extends Modal {
 			oldVersion.html.classList.remove('is-active');
 		}
 		return clickedEl;
+	}
+
+	/**
+	 * Restaura la versión seleccionada como contenido actual del archivo.
+	 * La versión actual anterior se desplaza al principio del historial.
+	 */
+	async restoreSelectedVersion(): Promise<void> {
+		const oldContent = this.currentContent;
+
+		// 1. Añadir el contenido actual como nueva versión al historial (posición 0)
+		this.addCustomVersion(oldContent, Date.now());
+
+		// 2. Escribir el contenido seleccionado al archivo
+		await this.app.vault.modify(this.file, this.selectedContent);
+
+		// 3. Intercambiar en el estado interno
+		this.currentContent = this.selectedContent;
+		this.selectedContent = oldContent;
+
+		// 4. Reactivar la primera versión del historial (la que acabamos de añadir)
+		if (this.vList.length > 0) {
+			this.vList.forEach((v) => v.html.classList.remove('is-active'));
+			this.vList[0].html.addClass('is-active');
+			this.active = 0;
+		}
+
+		// 5. Re-renderizar la vista side-by-side
+		this.renderSideBySide();
+
+		new Notice(
+			`Archivo restaurado a la versión seleccionada. La anterior se ha añadido al historial.`
+		);
+	}
+
+	/**
+	 * Copia el contenido de la versión seleccionada al portapapeles.
+	 */
+	async copySelectedContent(): Promise<void> {
+		await navigator.clipboard.writeText(this.selectedContent);
+		new Notice('Contenido copiado al portapapeles.');
 	}
 
 	onClose() {

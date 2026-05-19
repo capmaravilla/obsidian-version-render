@@ -82,6 +82,63 @@ export default class RecoveryView extends VersionRenderView {
 		);
 	}
 
+	/**
+	 * Añade una versión "custom" al principio del historial.
+	 * Se usa cuando el usuario restaura una versión: el contenido actual
+	 * se guarda como nueva entrada en la lista lateral.
+	 */
+	addCustomVersion(data: string, ts: number): void {
+		const dateStr = formatDateSpanish(ts);
+
+		const div = this.historyList.createDiv({
+			cls: ITEM_CLASS,
+			attr: { id: String(this.ids) },
+		});
+		this.ids += 1;
+
+		const lines = dateStr.split('\n');
+		div.createDiv({ text: lines[0] });
+		div.createDiv({ text: lines[1] });
+
+		// Insertar al principio de la lista HTML
+		this.historyList.insertBefore(div, this.historyList.firstChild);
+
+		// Insertar al principio de versions (con path y ts)
+		this.versions.unshift({ path: this.file.path, ts, data });
+
+		// Insertar al principio de vList
+		this.vList.unshift({ html: div, data });
+
+		// Re-indexar todos los IDs para que coincidan con el orden
+		this.refreshListIds();
+
+		// Click listener
+		div.addEventListener('click', async () => {
+			await this.activateVersion(div);
+			this.selectedContent = data;
+			this.selectedLabel = dateStr;
+			this.renderSideBySide();
+			this.contentEl.insertBefore(
+				this.historyContainer,
+				this.renderContainer
+			);
+		});
+	}
+
+	/**
+	 * Re-asigna los IDs de los elementos HTML para que coincidan
+	 * con su índice en vList. Necesario tras insertar al principio.
+	 */
+	private refreshListIds(): void {
+		const items = this.historyList.querySelectorAll(`.${ITEM_CLASS}`);
+		items.forEach((item, index) => {
+			(item as HTMLElement).id = String(index);
+			if (index < this.vList.length) {
+				this.vList[index].html.id = String(index);
+			}
+		});
+	}
+
 	private appendRecoveryVersions(
 		el: HTMLElement,
 		versions: recResult[]
