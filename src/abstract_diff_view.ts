@@ -76,7 +76,10 @@ export default abstract class VersionRenderView extends Modal {
 		const selectedHeader = selectedPanel.createDiv({
 			cls: 'version-render-panel-header',
 		});
-		selectedHeader.createSpan({ text: this.selectedLabel || 'Versión seleccionada' });
+		const selectedLabelDiv = selectedHeader.createDiv({
+			cls: 'bt-panel-label',
+		});
+		selectedLabelDiv.setText(this.selectedLabel || 'Versión seleccionada');
 
 		/* Botones de acción */
 		const actionButtons = selectedHeader.createDiv({ cls: 'bt-panel-actions' });

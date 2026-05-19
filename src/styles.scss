@@ -75,12 +75,12 @@
 
 .sync-history-list-container {
 	flex-shrink: 0;
-	min-width: 195px;
-	max-width: 220px;
+	min-width: 155px;
+	max-width: 185px;
 	overflow-y: auto;
 	background: var(--bt-surface);
 	border-right: 1px solid var(--bt-border);
-	padding: 12px 8px;
+	padding: 10px;
 
 	.sync-history-list {
 		margin-top: 0;
@@ -231,6 +231,13 @@
 	flex-direction: column;
 	align-items: center;
 	gap: 6px;
+
+	.bt-panel-label {
+		display: block;
+		white-space: pre-line;
+		line-height: 1.35;
+		width: 100%;
+	}
 
 	.bt-panel-actions {
 		display: flex;
